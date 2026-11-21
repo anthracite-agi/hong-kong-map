@@ -259,12 +259,16 @@ export function MapView(props: Props) {
       ;(window as Window & { __hkMap?: MapLibreMap }).__hkMap = map
     }
 
-    const timer = window.setTimeout(() => {
-      if (!map.loaded()) setBasemapError(true)
-    }, 12000)
-
-    map.on("load", () => {
-      window.clearTimeout(timer)
+    let overlaysReady = false
+    const showOverlays = () => {
+      if (!map.isStyleLoaded()) return
+      if (map.getSource("rail")) {
+        overlaysReady = true
+        setReady(true)
+        setBasemapError(false)
+        return
+      }
+      if (overlaysReady) return
       map.resize()
       addLayers(map)
       applyView(map, propsRef.current, true)
@@ -276,8 +280,6 @@ export function MapView(props: Props) {
         ],
         { padding: 28, animate: false },
       )
-      setBasemapError(false)
-      setReady(true)
       for (const layer of ["stations", "camera-points", "camera-clusters"] as const) {
         map.on("mouseenter", layer, () => {
           map.getCanvas().style.cursor = "pointer"
@@ -286,6 +288,20 @@ export function MapView(props: Props) {
           map.getCanvas().style.cursor = ""
         })
       }
+      overlaysReady = true
+      setBasemapError(false)
+      setReady(true)
+    }
+
+    const timer = window.setTimeout(() => {
+      if (!map.getSource("rail")) setBasemapError(true)
+    }, 12000)
+
+    map.on("style.load", showOverlays)
+    map.on("load", () => {
+      window.clearTimeout(timer)
+      setBasemapError(false)
+      showOverlays()
     })
 
     map.on("click", (event: MapMouseEvent) => {
@@ -358,7 +374,7 @@ export function MapView(props: Props) {
       </div>
       {basemapError ? (
         <div className="absolute inset-x-3 bottom-8 z-10 rounded-lg border bg-card px-3 py-2 text-sm shadow-sm">
-          底圖暫時載入不到。OpenFreeMap 公開服務沒有回應，請稍後再試。車站和快拍點仍可在資料載入後顯示。
+          底圖暫時載入不到。OpenFreeMap 沒有回應，車站和快拍點也無法顯示。請稍後再試。
         </div>
       ) : null}
     </div>

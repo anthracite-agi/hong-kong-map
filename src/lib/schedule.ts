@@ -40,6 +40,18 @@ export function isNormal(payload: SchedulePayload): boolean {
   return String(payload.status ?? "1") === "1"
 }
 
+function isSchedulePayload(value: unknown): value is SchedulePayload {
+  if (value == null || typeof value !== "object") return false
+  const record = value as Record<string, unknown>
+  if ("status" in record && record.status != null && typeof record.status !== "number" && typeof record.status !== "string") {
+    return false
+  }
+  if ("data" in record && record.data != null && typeof record.data !== "object") return false
+  if ("message" in record && record.message != null && typeof record.message !== "string") return false
+  if ("url" in record && record.url != null && typeof record.url !== "string") return false
+  return true
+}
+
 export function trainsFor(
   payload: SchedulePayload,
   line: string,
@@ -114,7 +126,17 @@ export async function fetchSchedule(line: string, station: string): Promise<Sche
     throw new ScheduleError("暫時未能取得到站班次。", response.status)
   }
 
-  const value = (await response.json()) as SchedulePayload
-  cache.set(key, { at: Date.now(), value })
-  return value
+  let parsed: unknown
+  try {
+    parsed = await response.json()
+  } catch {
+    throw new ScheduleError("暫時未能取得到站班次。", response.status)
+  }
+  if (!isSchedulePayload(parsed)) {
+    throw new ScheduleError("暫時未能取得到站班次。", response.status)
+  }
+  if (isNormal(parsed)) {
+    cache.set(key, { at: Date.now(), value: parsed })
+  }
+  return parsed
 }
