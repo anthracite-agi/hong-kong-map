@@ -24,7 +24,7 @@ npm run preview
 - 底圖：OpenFreeMap Liberty 樣式。免註冊、免 API 金鑰。
 - 到站班次：港鐵實時列車服務資訊，`https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php`。只在點選車站時查詢，同一站 10 秒內重用結果。
 - 路綫和車站名稱：港鐵「路綫及車站」CSV。馬場站不在這份表內，但到站接口有這個站，所以地圖有把它畫上。
-- 車站位置：OpenStreetMap，對上港鐵站名。路綫是站與站的連線，不是路軌中心線。
+- 車站位置和路軌彎道：OpenStreetMap。路綫跟實際路軌，包括落馬洲、康城和馬場支綫。
 - 交通快拍：運輸署位置檔，共 1013 點。照片由瀏覽器直接向 `tdcctv.data.one.gov.hk` 讀取。
 
 輕鐵、港鐵巴士和高鐵不在上述到站接口內，所以這幅地圖不把它們畫成可查班次的站。

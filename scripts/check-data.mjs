@@ -31,25 +31,14 @@ for (const station of network.stations) {
   if (station.lines.length === 0) throw new Error(`${station.name} 沒有所屬路綫`)
 }
 
-const segmentCounts = {
-  ISL: 16,
-  TWL: 15,
-  KTL: 16,
-  TKL: 7,
-  EAL: 16,
-  TML: 26,
-  TCL: 7,
-  AEL: 4,
-  SIL: 4,
-  DRL: 1,
-}
 for (const line of network.lines) {
-  const expected = segmentCounts[line.code]
-  if (line.segments.length !== expected) {
-    throw new Error(`${line.name} 應有 ${expected} 段，實際 ${line.segments.length}`)
-  }
+  const longest = Math.max(...line.segments.map((segment) => segment.length))
+  if (longest < 30) throw new Error(`${line.name} 仍然只是直線，未跟路軌彎曲`)
   for (const segment of line.segments) {
-    if (segment.length !== 2) throw new Error(`${line.name} 有不完整路段`)
+    if (segment.length < 2) throw new Error(`${line.name} 有不完整路段`)
+    for (const point of segment) {
+      requireCoordinate(point[1], point[0], line.name)
+    }
   }
 }
 
@@ -70,36 +59,35 @@ for (const camera of cameras) {
   }
 }
 
-function pointOf(code) {
-  const station = byCode.get(code)
-  return [station.lng, station.lat]
+function distanceKm(point, line) {
+  const lat = (point[1] * Math.PI) / 180
+  const xy = (coord) => [coord[0] * 111.32 * Math.cos(lat), coord[1] * 110.57]
+  const [px, py] = xy(point)
+  let best = Infinity
+  for (const segment of line.segments) {
+    for (let index = 1; index < segment.length; index += 1) {
+      const [ax, ay] = xy(segment[index - 1])
+      const [bx, by] = xy(segment[index])
+      const dx = bx - ax
+      const dy = by - ay
+      const denom = dx * dx + dy * dy
+      const t = denom === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / denom))
+      const qx = ax + t * dx
+      const qy = ay + t * dy
+      best = Math.min(best, Math.hypot(px - qx, py - qy))
+    }
+  }
+  return best
 }
 
-function near(left, right) {
-  return Math.abs(left[0] - right[0]) < 1e-5 && Math.abs(left[1] - right[1]) < 1e-5
-}
-
-function links(line, from, to) {
-  const start = pointOf(from)
-  const end = pointOf(to)
-  return line.segments.some(
-    (segment) =>
-      (near(segment[0], start) && near(segment[1], end)) ||
-      (near(segment[0], end) && near(segment[1], start)),
-  )
-}
-
-const eastRail = network.lines.find((line) => line.code === "EAL")
-if (
-  !links(eastRail, "UNI", "FOT") ||
-  !links(eastRail, "FOT", "SHT") ||
-  !links(eastRail, "UNI", "RAC") ||
-  !links(eastRail, "RAC", "SHT")
-) {
-  throw new Error("東鐵綫未同時保留火炭正綫和馬場支綫")
-}
-if (links(eastRail, "RAC", "FOT")) {
-  throw new Error("馬場站不應直接連接火炭站")
+for (const line of network.lines) {
+  for (const station of network.stations) {
+    if (!station.lines.includes(line.code)) continue
+    const distance = distanceKm([station.lng, station.lat], line)
+    if (distance > 0.45) {
+      throw new Error(`${station.name} 距離${line.name} ${distance.toFixed(2)} 公里`)
+    }
+  }
 }
 if (regions["香港島"] !== 116 || regions["九龍"] !== 232 || regions["新界"] !== 665) {
   throw new Error(`地區數目不符：${JSON.stringify(regions)}`)

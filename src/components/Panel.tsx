@@ -317,7 +317,7 @@ export function Panel(props: Props) {
               ))}
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              路綫按官方車站次序連接，支綫分開畫出。這是站與站的連線，不是路軌中心線。
+              路綫跟隨路軌的實際彎道，包括落馬洲、康城和馬場支綫。
             </p>
           </div>
         </div>
