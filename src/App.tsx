@@ -2,6 +2,7 @@ import { useState } from "react"
 import { MapView } from "@/components/MapView"
 import { Panel } from "@/components/Panel"
 import type { Region } from "@/lib/network"
+import { useTrainSightings } from "@/lib/trains"
 
 type Selection =
   | { type: "station"; code: string }
@@ -10,10 +11,12 @@ type Selection =
 
 export default function App() {
   const [showRail, setShowRail] = useState(true)
+  const [showTrains, setShowTrains] = useState(true)
   const [showCameras, setShowCameras] = useState(true)
   const [region, setRegion] = useState<Region>("全部")
   const [activeLine, setActiveLine] = useState<string | null>(null)
   const [selection, setSelection] = useState<Selection>(null)
+  const trains = useTrainSightings(showRail && showTrains, activeLine)
 
   return (
     <main
@@ -26,11 +29,15 @@ export default function App() {
       <div className="order-2 h-full min-h-0 md:order-1">
         <Panel
           showRail={showRail}
+          showTrains={showTrains}
           showCameras={showCameras}
+          trainStatus={trains.status}
+          trainCount={trains.sightings.length}
           region={region}
           activeLine={activeLine}
           selection={selection}
           onShowRail={setShowRail}
+          onShowTrains={setShowTrains}
           onShowCameras={setShowCameras}
           onRegion={setRegion}
           onActiveLine={setActiveLine}
@@ -40,7 +47,9 @@ export default function App() {
       <div className="relative order-1 h-full min-h-0 md:order-2">
         <MapView
           showRail={showRail}
+          showTrains={showTrains}
           showCameras={showCameras}
+          trainSightings={trains.sightings}
           region={region}
           activeLine={activeLine}
           selectedStation={selection?.type === "station" ? selection.code : null}

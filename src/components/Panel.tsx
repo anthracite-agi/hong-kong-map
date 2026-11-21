@@ -25,6 +25,7 @@ import {
   trainsFor,
   type SchedulePayload,
 } from "@/lib/schedule"
+import type { TrainFeedStatus } from "@/lib/trains"
 
 type Selection =
   | { type: "station"; code: string }
@@ -37,15 +38,32 @@ type LineResult =
 
 type Props = {
   showRail: boolean
+  showTrains: boolean
   showCameras: boolean
+  trainStatus: TrainFeedStatus
+  trainCount: number
   region: Region
   activeLine: string | null
   selection: Selection
   onShowRail: (value: boolean) => void
+  onShowTrains: (value: boolean) => void
   onShowCameras: (value: boolean) => void
   onRegion: (region: Region) => void
   onActiveLine: (code: string | null) => void
   onClear: () => void
+}
+
+function trainNotice(status: TrainFeedStatus, count: number, railOn: boolean): string {
+  if (!railOn) return "打開港鐵網絡後，列車會沿路軌顯示。"
+  if (status === "loading" && count === 0) {
+    return "正在向各站查詢班次，列車會陸續出現。位置按到站時間估算，並非港鐵即時定位。"
+  }
+  if (status === "limited") {
+    return "港鐵暫時拒絕部分查詢，先顯示已取得的列車。位置是估算，並非即時定位。"
+  }
+  if (status === "error") return "暫時未能估算列車位置，請稍後再試。"
+  if (count === 0) return "現時沒有可顯示的列車。可能是非服務時間。"
+  return "圓點沿路軌移動。位置按到站時間估算，並非港鐵即時定位。"
 }
 
 function snapshotSrc(url: string, token: number, bare: boolean): string {
@@ -227,11 +245,15 @@ function CameraDetail({ id }: { id: string }) {
 export function Panel(props: Props) {
   const {
     showRail,
+    showTrains,
     showCameras,
+    trainStatus,
+    trainCount,
     region,
     activeLine,
     selection,
     onShowRail,
+    onShowTrains,
     onShowCameras,
     onRegion,
     onActiveLine,
@@ -250,6 +272,10 @@ export function Panel(props: Props) {
           <label className="flex items-center justify-between gap-3 text-sm">
             <span>港鐵網絡</span>
             <Switch checked={showRail} onCheckedChange={onShowRail} aria-label="顯示港鐵網絡" />
+          </label>
+          <label className="flex items-center justify-between gap-3 text-sm">
+            <span>列車位置</span>
+            <Switch checked={showTrains} onCheckedChange={onShowTrains} aria-label="顯示列車位置" />
           </label>
           <label className="flex items-center justify-between gap-3 text-sm">
             <span>交通快拍</span>
@@ -277,6 +303,11 @@ export function Panel(props: Props) {
       <Separator />
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-4 px-4 py-4">
+          {showTrains ? (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {trainNotice(trainStatus, trainCount, showRail)}
+            </p>
+          ) : null}
           {selection?.type === "station" ? (
             <StationDetail key={selection.code} code={selection.code} />
           ) : null}
@@ -324,7 +355,7 @@ export function Panel(props: Props) {
       </ScrollArea>
       <footer className="space-y-1 border-t px-4 py-3 text-xs leading-relaxed text-muted-foreground">
         <p>底圖：OpenFreeMap、OpenMapTiles、OpenStreetMap。</p>
-        <p>到站班次：香港鐵路有限公司，經 DATA.GOV.HK。只在點選車站時查詢。</p>
+        <p>到站班次：香港鐵路有限公司，經 DATA.GOV.HK。點選車站可看該站班次。地圖上的列車位置是按這些到站時間估算。</p>
         <p>快拍圖像與位置：運輸署，經 DATA.GOV.HK。車站位置來自 OpenStreetMap，對上港鐵路綫表。</p>
         <p>本網站並非港鐵或香港特別行政區政府的官方服務。</p>
       </footer>

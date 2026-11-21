@@ -12,6 +12,7 @@ import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"
 import "maplibre-gl/dist/maplibre-gl.css"
 import { Button } from "@/components/ui/button"
 import { cameraByKey, camerasIn, lines, stationByCode, stations, type Region } from "@/lib/network"
+import { emptyTrainCollection, trainFeatureCollection, type Sighting } from "@/lib/trains"
 
 setWorkerUrl(workerUrl)
 
@@ -19,7 +20,9 @@ const styleUrl = "https://tiles.openfreemap.org/styles/liberty"
 
 type Props = {
   showRail: boolean
+  showTrains: boolean
   showCameras: boolean
+  trainSightings: Sighting[]
   region: Region
   activeLine: string | null
   selectedStation: string | null
@@ -102,7 +105,10 @@ function geoJsonSource(source: Source | undefined): GeoJSONSource | null {
 
 function applyView(map: MapLibreMap, view: ViewState, replaceCameras: boolean) {
   const visibility = (show: boolean) => (show ? "visible" : "none")
+  const showTrains = view.showRail && view.showTrains
   map.setLayoutProperty("rail-lines", "visibility", visibility(view.showRail))
+  map.setLayoutProperty("trains", "visibility", visibility(showTrains))
+  map.setLayoutProperty("train-labels", "visibility", visibility(showTrains))
   map.setLayoutProperty("stations", "visibility", visibility(view.showRail))
   map.setLayoutProperty("station-labels", "visibility", visibility(view.showRail))
   map.setLayoutProperty("camera-clusters", "visibility", visibility(view.showCameras))
@@ -120,6 +126,11 @@ function applyView(map: MapLibreMap, view: ViewState, replaceCameras: boolean) {
   map.setFilter(
     "station-labels",
     view.activeLine ? ["in", `,${view.activeLine},`, ["get", "lines"]] : ["has", "code"],
+  )
+  map.setFilter("trains", view.activeLine ? ["==", ["get", "line"], view.activeLine] : ["has", "line"])
+  map.setFilter(
+    "train-labels",
+    view.activeLine ? ["==", ["get", "line"], view.activeLine] : ["has", "line"],
   )
 
   if (replaceCameras) {
@@ -143,6 +154,7 @@ function addLayers(map: MapLibreMap) {
     clusterRadius: 48,
     clusterMaxZoom: 13,
   })
+  map.addSource("trains", { type: "geojson", data: emptyTrainCollection })
   map.addSource("highlight", { type: "geojson", data: highlightCollection(null, null) })
 
   map.addLayer({
@@ -193,6 +205,36 @@ function addLayers(map: MapLibreMap) {
     },
   })
   map.addLayer({
+    id: "trains",
+    type: "circle",
+    source: "trains",
+    paint: {
+      "circle-color": ["get", "color"],
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 4, 13, 6.5, 16, 8],
+      "circle-stroke-width": 2,
+      "circle-stroke-color": "#fffaf3",
+    },
+  })
+  map.addLayer({
+    id: "train-labels",
+    type: "symbol",
+    source: "trains",
+    minzoom: 13,
+    layout: {
+      "text-field": ["concat", "往", ["get", "destName"]],
+      "text-font": ["Noto Sans Regular"],
+      "text-size": 11,
+      "text-offset": [0, -1.1],
+      "text-anchor": "bottom",
+      "text-optional": true,
+    },
+    paint: {
+      "text-color": "#1c1915",
+      "text-halo-color": "#f6f0e4",
+      "text-halo-width": 1.2,
+    },
+  })
+  map.addLayer({
     id: "stations",
     type: "circle",
     source: "station-points",
@@ -238,6 +280,7 @@ export function MapView(props: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const propsRef = useRef(props)
+  const sightingsRef = useRef(props.trainSightings)
   const [ready, setReady] = useState(false)
   const [basemapError, setBasemapError] = useState(false)
   const regionRef = useRef<Region | null>(null)
@@ -348,11 +391,34 @@ export function MapView(props: Props) {
 
   useEffect(() => {
     propsRef.current = props
+    sightingsRef.current = props.trainSightings
     const map = mapRef.current
     if (!map || !ready) return
     applyView(map, props, regionRef.current !== props.region)
     regionRef.current = props.region
   }, [ready, props])
+
+  useEffect(() => {
+    if (!ready) return
+    const map = mapRef.current
+    if (!map) return
+
+    const drawTrains = () => {
+      const current = propsRef.current
+      const show = current.showRail && current.showTrains
+      const data = show
+        ? trainFeatureCollection(sightingsRef.current, current.activeLine)
+        : emptyTrainCollection
+      geoJsonSource(map.getSource("trains"))?.setData(data)
+      if (import.meta.env.DEV) {
+        ;(window as Window & { __hkTrains?: typeof data }).__hkTrains = data
+      }
+    }
+
+    drawTrains()
+    const timer = window.setInterval(drawTrains, 150)
+    return () => window.clearInterval(timer)
+  }, [ready])
 
   function showHongKong() {
     mapRef.current?.fitBounds(
@@ -367,10 +433,15 @@ export function MapView(props: Props) {
   return (
     <div className="relative h-full w-full">
       <div id="map" ref={containerRef} className="h-full w-full" />
-      <div className="absolute top-3 left-3 z-10">
+      <div className="absolute top-3 left-3 z-10 flex max-w-[16rem] flex-col items-start gap-2">
         <Button type="button" variant="outline" className="bg-card shadow-sm" onClick={showHongKong}>
           回到全港
         </Button>
+        {props.showRail && props.showTrains ? (
+          <p className="rounded-lg border bg-card/95 px-3 py-2 text-xs leading-relaxed shadow-sm">
+            列車位置按到站時間估算，並非港鐵即時定位。
+          </p>
+        ) : null}
       </div>
       {basemapError ? (
         <div className="absolute inset-x-3 bottom-8 z-10 rounded-lg border bg-card px-3 py-2 text-sm shadow-sm">

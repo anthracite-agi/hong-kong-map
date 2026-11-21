@@ -4,6 +4,7 @@ export type Train = {
   plat?: string
   time?: string
   ttnt?: string
+  valid?: string
 }
 
 export type DirectionBlock = {
@@ -73,7 +74,7 @@ export function hasBothDirections(payload: SchedulePayload, line: string, statio
   return { up, down }
 }
 
-function parseStamp(value: string): number | null {
+export function parseStamp(value: string): number | null {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/)
   if (!match) return null
   return Date.UTC(
