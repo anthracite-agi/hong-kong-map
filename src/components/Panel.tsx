@@ -20,7 +20,7 @@ import {
   delayNotice,
   fetchSchedule,
   hasBothDirections,
-  minutesLabel,
+  minutesUntil,
   problemNotice,
   trainsFor,
   type SchedulePayload,
@@ -48,15 +48,24 @@ type Props = {
   onClear: () => void
 }
 
-function snapshotSrc(url: string, bare: boolean): string {
+function snapshotSrc(url: string, token: number, bare: boolean): string {
   if (bare) return url
-  const token = Math.floor(Date.now() / 120_000)
   return `${url}${url.includes("?") ? "&" : "?"}t=${token}`
 }
 
 function Snapshot({ url, description }: { url: string; description: string }) {
   const [bare, setBare] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [token, setToken] = useState(() => Math.floor(Date.now() / 120_000))
+
+  useEffect(() => {
+    const refresh = window.setInterval(() => {
+      setToken(Math.floor(Date.now() / 120_000))
+      setBare(false)
+      setFailed(false)
+    }, 120_000)
+    return () => window.clearInterval(refresh)
+  }, [url])
 
   if (failed) {
     return (
@@ -68,8 +77,8 @@ function Snapshot({ url, description }: { url: string; description: string }) {
 
   return (
     <img
-      key={bare ? "bare" : "fresh"}
-      src={snapshotSrc(url, bare)}
+      key={`${token}-${bare ? "bare" : "fresh"}`}
+      src={snapshotSrc(url, token, bare)}
       alt={description}
       referrerPolicy="no-referrer"
       className="w-full rounded-lg bg-neutral-950"
@@ -105,7 +114,7 @@ function TrainList({
       <ul className="space-y-1.5">
         {trains.map((train, index) => {
           const dest = train.dest ? stationByCode.get(train.dest)?.name ?? train.dest : "終點未明"
-          const when = minutesLabel(train.ttnt)
+          const when = minutesUntil(train.time, payload.curr_time ?? payload.sys_time)
           const clock = clockLabel(train.time)
           const platform = train.plat ? `${train.plat} 號月台` : null
           return (

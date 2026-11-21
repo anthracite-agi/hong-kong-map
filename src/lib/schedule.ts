@@ -73,16 +73,27 @@ export function hasBothDirections(payload: SchedulePayload, line: string, statio
   return { up, down }
 }
 
-export function minutesLabel(ttnt?: string): string {
-  if (ttnt == null || ttnt.trim() === "") return "時間未明"
-  const value = ttnt.trim()
-  if (value === "0" || value === "-") return "即將到站"
-  const minutes = Number(value)
-  if (Number.isFinite(minutes)) {
-    if (minutes <= 0) return "即將到站"
-    return `約 ${minutes} 分鐘`
-  }
-  return value
+function parseStamp(value: string): number | null {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/)
+  if (!match) return null
+  return Date.UTC(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5]),
+    Number(match[6] ?? 0),
+  )
+}
+
+export function minutesUntil(trainTime?: string, currentTime?: string): string {
+  if (!trainTime || !currentTime) return "時間未明"
+  const train = parseStamp(trainTime)
+  const current = parseStamp(currentTime)
+  if (train == null || current == null) return "時間未明"
+  const minutes = Math.round((train - current) / 60_000)
+  if (minutes <= 0) return "即將到站"
+  return `約 ${minutes} 分鐘`
 }
 
 export function clockLabel(value?: string): string | null {

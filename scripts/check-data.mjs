@@ -17,7 +17,14 @@ if (!byCode.has("RAC") || !byCode.get("RAC").lines.includes("EAL")) {
   throw new Error("馬場站未列入東鐵綫")
 }
 
+function requireCoordinate(lat, lng, label) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    throw new Error(`${label} 座標不是有效數字`)
+  }
+}
+
 for (const station of network.stations) {
+  requireCoordinate(station.lat, station.lng, station.name)
   if (station.lat < 22.18 || station.lat > 22.56 || station.lng < 113.82 || station.lng > 114.46) {
     throw new Error(`${station.name} 座標超出香港範圍`)
   }
@@ -29,7 +36,7 @@ const segmentCounts = {
   TWL: 15,
   KTL: 16,
   TKL: 7,
-  EAL: 15,
+  EAL: 16,
   TML: 26,
   TCL: 7,
   AEL: 4,
@@ -57,9 +64,42 @@ for (const camera of cameras) {
   if (!camera.url.startsWith("https://tdcctv.data.one.gov.hk/")) {
     throw new Error(`快拍網址不屬於運輸署：${camera.url}`)
   }
+  requireCoordinate(camera.lat, camera.lng, camera.key)
   if (camera.lat < 22.15 || camera.lat > 22.58 || camera.lng < 113.8 || camera.lng > 114.5) {
     throw new Error(`${camera.key} 座標超出香港範圍`)
   }
+}
+
+function pointOf(code) {
+  const station = byCode.get(code)
+  return [station.lng, station.lat]
+}
+
+function near(left, right) {
+  return Math.abs(left[0] - right[0]) < 1e-5 && Math.abs(left[1] - right[1]) < 1e-5
+}
+
+function links(line, from, to) {
+  const start = pointOf(from)
+  const end = pointOf(to)
+  return line.segments.some(
+    (segment) =>
+      (near(segment[0], start) && near(segment[1], end)) ||
+      (near(segment[0], end) && near(segment[1], start)),
+  )
+}
+
+const eastRail = network.lines.find((line) => line.code === "EAL")
+if (
+  !links(eastRail, "UNI", "FOT") ||
+  !links(eastRail, "FOT", "SHT") ||
+  !links(eastRail, "UNI", "RAC") ||
+  !links(eastRail, "RAC", "SHT")
+) {
+  throw new Error("東鐵綫未同時保留火炭正綫和馬場支綫")
+}
+if (links(eastRail, "RAC", "FOT")) {
+  throw new Error("馬場站不應直接連接火炭站")
 }
 if (regions["香港島"] !== 116 || regions["九龍"] !== 232 || regions["新界"] !== 665) {
   throw new Error(`地區數目不符：${JSON.stringify(regions)}`)
