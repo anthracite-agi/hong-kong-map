@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -261,7 +260,8 @@ export function Panel(props: Props) {
   } = props
 
   return (
-    <aside className="flex h-full min-h-0 flex-col border-t-4 border-t-[#c8102e] bg-background md:border-t-0 md:border-r md:border-r-border">
+    <aside className="flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain border-t-4 border-t-[#c8102e] bg-background pb-[env(safe-area-inset-bottom)] md:overflow-hidden md:border-t-0 md:border-r md:border-r-border md:pb-0">
+      <div className={`shrink-0 ${selection ? "max-md:order-2" : ""}`}>
       <header className="space-y-4 px-4 pt-4 pb-3">
         <div>
           <p className="text-xs tracking-[0.18em] text-muted-foreground">香港</p>
@@ -301,8 +301,13 @@ export function Panel(props: Props) {
         </div>
       </header>
       <Separator />
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-4 px-4 py-4">
+      </div>
+      <div
+        className={`shrink-0 px-4 py-4 md:min-h-0 md:flex-1 md:shrink md:overflow-y-auto md:overscroll-contain ${
+          selection ? "max-md:order-1" : ""
+        }`}
+      >
+        <div className="space-y-4">
           {showTrains ? (
             <p className="text-xs leading-relaxed text-muted-foreground">
               {trainNotice(trainStatus, trainCount, showRail)}
@@ -352,8 +357,12 @@ export function Panel(props: Props) {
             </p>
           </div>
         </div>
-      </ScrollArea>
-      <footer className="space-y-1 border-t px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+      </div>
+      <footer
+        className={`shrink-0 space-y-1 border-t px-4 py-3 text-xs leading-relaxed text-muted-foreground md:mt-auto ${
+          selection ? "max-md:order-3" : ""
+        }`}
+      >
         <p>底圖：OpenFreeMap、OpenMapTiles、OpenStreetMap。</p>
         <p>到站班次：香港鐵路有限公司，經 DATA.GOV.HK。點選車站可看該站班次。地圖上的列車位置是按這些到站時間估算。</p>
         <p>快拍圖像與位置：運輸署，經 DATA.GOV.HK。車站位置來自 OpenStreetMap，對上港鐵路綫表。</p>

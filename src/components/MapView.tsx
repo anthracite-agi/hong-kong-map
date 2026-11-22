@@ -98,6 +98,28 @@ function highlightCollection(stationCode: string | null, cameraKey: string | nul
   }
 }
 
+function closestHit(map: MapLibreMap, point: { x: number; y: number }, layers: string[], limit = 26) {
+  const hits = map.queryRenderedFeatures(
+    [
+      [point.x - limit, point.y - limit],
+      [point.x + limit, point.y + limit],
+    ],
+    { layers },
+  )
+  let best: (typeof hits)[number] | undefined
+  let bestDistance = limit
+  for (const hit of hits) {
+    if (hit.geometry.type !== "Point") continue
+    const projected = map.project(hit.geometry.coordinates as [number, number])
+    const distance = Math.hypot(projected.x - point.x, projected.y - point.y)
+    if (distance <= bestDistance) {
+      best = hit
+      bestDistance = distance
+    }
+  }
+  return best ? { feature: best, distance: bestDistance } : null
+}
+
 function geoJsonSource(source: Source | undefined): GeoJSONSource | null {
   if (source?.type !== "geojson") return null
   return source as GeoJSONSource
@@ -199,7 +221,7 @@ function addLayers(map: MapLibreMap) {
     filter: ["!", ["has", "point_count"]],
     paint: {
       "circle-color": "#c2410c",
-      "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3, 14, 5.5],
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 4.5, 14, 6.5],
       "circle-stroke-width": 1.5,
       "circle-stroke-color": "#fffaf3",
     },
@@ -240,7 +262,7 @@ function addLayers(map: MapLibreMap) {
     source: "station-points",
     paint: {
       "circle-color": "#fffaf3",
-      "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 3.5, 13, 5.5, 16, 7],
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 5, 13, 6.5, 16, 8],
       "circle-stroke-width": 2,
       "circle-stroke-color": "#1c1915",
     },
@@ -349,24 +371,32 @@ export function MapView(props: Props) {
 
     map.on("click", (event: MapMouseEvent) => {
       const current = propsRef.current
-      if (current.showRail && map.getLayer("stations")) {
-        const stationHit = map.queryRenderedFeatures(event.point, { layers: ["stations"] })[0]
-        const code = stationHit?.properties?.code
+      const station =
+        current.showRail && map.getLayer("stations")
+          ? closestHit(map, event.point, ["stations"])
+          : null
+      const camera =
+        current.showCameras && map.getLayer("camera-points")
+          ? closestHit(map, event.point, ["camera-points"])
+          : null
+      if (station && (!camera || station.distance <= camera.distance)) {
+        const code = station.feature.properties?.code
         if (typeof code === "string") {
           current.onSelectStation(code)
           return
         }
       }
-      if (!current.showCameras || !map.getLayer("camera-points")) return
-      const cameraHit = map.queryRenderedFeatures(event.point, { layers: ["camera-points"] })[0]
-      const key = cameraHit?.properties?.key
-      if (typeof key === "string") {
-        current.onSelectCamera(key)
-        return
+      if (camera) {
+        const key = camera.feature.properties?.key
+        if (typeof key === "string") {
+          current.onSelectCamera(key)
+          return
+        }
       }
-      const clusterHit = map.queryRenderedFeatures(event.point, { layers: ["camera-clusters"] })[0]
-      const clusterId = clusterHit?.properties?.cluster_id
-      const geometry = clusterHit?.geometry
+      if (!current.showCameras || !map.getLayer("camera-clusters")) return
+      const cluster = closestHit(map, event.point, ["camera-clusters"], 32)
+      const clusterId = cluster?.feature.properties?.cluster_id
+      const geometry = cluster?.feature.geometry
       if (typeof clusterId !== "number" || geometry?.type !== "Point") return
       const source = geoJsonSource(map.getSource("cameras"))
       if (!source) return
